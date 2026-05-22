@@ -56,6 +56,20 @@ Use these answers to generate a **"Rebuild Your Life"** section in the checklist
 
 This transforms the app from a logistics checklist into a **life continuity planner** — helping people not just move their stuff but rebuild the life they love in a new place. This section should be Claude API-generated: the user's lifestyle profile + destination feeds into a prompt that returns personalised "rebuild" tasks. Hardcoding these per city would be impossible.
 
+### Origin / destination input redesign
+Replace the current stacked layout for the origin and destination questions with a Google Flights–style "from → to" visual:
+- Two clearly labelled boxes side by side with a swap arrow (⇄) between them
+- Left box: origin city and country
+- Right box: destination city and country
+- The swap arrow lets users reverse the move direction in one tap
+- Makes origin and destination impossible to confuse at a glance; feels immediately familiar to anyone who has searched for a flight
+
+Apply to two places:
+1. The onboarding steps where origin and destination are entered (currently two separate full-screen steps — consider collapsing into one combined step with the side-by-side layout)
+2. The summary line at the top of the generated checklist, showing "Amsterdam → Barcelona" in the same visual language
+
+Design note: on mobile the boxes can stack vertically with the arrow between them if side-by-side is too cramped.
+
 #### Passport and visa logic
 Current implementation handles basic EU/non-EU logic as a proof of concept. Full implementation should use the Claude API to dynamically generate immigration requirements based on:
 - Origin country

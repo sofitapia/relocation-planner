@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { generateChecklist, getMonthLabel, CATEGORIES } from './checklistData'
+import { generateWithClaude, testApiKey } from './claudeApi'
 import './index.css'
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -404,10 +405,23 @@ function RadioInput({ step, answers, setAnswers }) {
   )
 }
 
+// Values that are mutually exclusive with all other selections
+const EXCLUSIVE_VALUES = new Set(['none', 'neither'])
+
 function MultiSelectInput({ step, answers, setAnswers }) {
   const selected = answers[step.id] || []
   const toggle = value => {
-    const next = selected.includes(value) ? selected.filter(v => v !== value) : [...selected, value]
+    let next
+    if (EXCLUSIVE_VALUES.has(value)) {
+      // 'None'/'Neither': clear everything else, or deselect if already chosen
+      next = selected.includes(value) ? [] : [value]
+    } else if (selected.includes(value)) {
+      // Deselecting a normal option
+      next = selected.filter(v => v !== value)
+    } else {
+      // Selecting a normal option: drop any exclusive value first
+      next = [...selected.filter(v => !EXCLUSIVE_VALUES.has(v)), value]
+    }
     setAnswers(a => ({ ...a, [step.id]: next }))
   }
   return (
@@ -471,7 +485,189 @@ function PassportMultiSelect({ selected, onChange }) {
 
 // ─── Onboarding form ──────────────────────────────────────────────────────────
 
-function OnboardingForm({ onComplete }) {
+function SettingsScreen({ onClose }) {
+  // storedKey = what's currently in localStorage (shown as masked confirmation)
+  // newKey    = what the user is typing to replace/add
+  const [storedKey, setStoredKey] = useState(() => localStorage.getItem('claude-api-key') || '')
+  const [newKey, setNewKey]       = useState('')
+  const [testStatus, setTestStatus] = useState(null) // null | 'testing' | 'ok' | 'error'
+  const [testMsg, setTestMsg]     = useState('')
+
+  // The key to test: prefer what's typed; fall back to stored
+  const activeKey = newKey.trim() || storedKey
+
+  const save = () => {
+    const trimmed = newKey.trim()
+    if (!trimmed) return
+    localStorage.setItem('claude-api-key', trimmed)
+    setStoredKey(trimmed)
+    setNewKey('')
+    setTestStatus(null)
+  }
+
+  const remove = () => {
+    localStorage.removeItem('claude-api-key')
+    setStoredKey('')
+    setNewKey('')
+    setTestStatus(null)
+  }
+
+  const test = async () => {
+    if (!activeKey) return
+    setTestStatus('testing')
+    setTestMsg('')
+    try {
+      await testApiKey(activeKey)
+      // Key works — if it was a newly typed key, save it automatically
+      if (newKey.trim()) {
+        localStorage.setItem('claude-api-key', newKey.trim())
+        setStoredKey(newKey.trim())
+        setNewKey('')
+      }
+      setTestStatus('ok')
+    } catch (err) {
+      setTestStatus('error')
+      const msg = err.message || ''
+      setTestMsg(
+        msg.includes('401') || msg.toLowerCase().includes('auth') || msg.toLowerCase().includes('invalid')
+          ? 'Invalid API key — double-check it at console.anthropic.com'
+          : msg.slice(0, 140) || 'Connection failed. Check your network.'
+      )
+    }
+  }
+
+  const maskKey = k => k.length > 8 ? `${k.slice(0, 8)}...` : k
+
+  return (
+    <div className="min-h-screen bg-cream flex flex-col">
+      <div className="px-8 pt-8 pb-0 max-w-lg mx-auto w-full">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className={`${SERIF} text-2xl font-medium text-ink`}>Settings</h1>
+          <button type="button" onClick={onClose}
+            className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 px-8 max-w-lg mx-auto w-full space-y-6">
+
+        {/* Stored key status */}
+        {storedKey ? (
+          <div className="flex items-center justify-between px-4 py-3 bg-gold/10 border border-gold/30">
+            <div>
+              <p className="text-[10px] text-ink-mute uppercase tracking-[0.12em] font-semibold mb-0.5">Key stored</p>
+              <p className="text-sm font-mono text-ink">{maskKey(storedKey)}</p>
+            </div>
+            <button type="button" onClick={remove}
+              className="text-[10px] text-ink-mute hover:text-red-600 uppercase tracking-[0.12em] font-medium transition-colors">
+              Remove
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 py-3 border border-rule">
+            <p className="text-xs text-ink-mute">No API key stored — add one below.</p>
+          </div>
+        )}
+
+        {/* New key input */}
+        <div>
+          <label className={LABEL_CLS}>{storedKey ? 'Replace with new key' : 'Add Claude API key'}</label>
+          <input
+            type="password"
+            value={newKey}
+            onChange={e => { setNewKey(e.target.value); setTestStatus(null) }}
+            placeholder="sk-ant-api03-..."
+            autoComplete="off"
+            className="w-full bg-white border border-rule text-ink px-4 py-3.5 text-sm focus:outline-none focus:border-gold transition-colors font-mono"
+          />
+          <p className="text-[10px] text-ink-mute mt-2 leading-relaxed">
+            Stored locally in your browser, sent only to Anthropic.{' '}
+            Get a key at <span className="text-ink-mid">console.anthropic.com</span>
+          </p>
+        </div>
+
+        {/* Test result */}
+        {testStatus === 'ok' && (
+          <p className="text-xs text-gold font-semibold uppercase tracking-[0.1em]">
+            Key verified — working correctly
+          </p>
+        )}
+        {testStatus === 'error' && (
+          <p className="text-xs text-red-600 leading-relaxed">{testMsg}</p>
+        )}
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={test}
+            disabled={!activeKey || testStatus === 'testing'}
+            className={`flex-1 py-3.5 font-semibold text-sm uppercase tracking-[0.14em] border transition-all ${
+              activeKey && testStatus !== 'testing'
+                ? 'border-ink text-ink hover:bg-ink hover:text-cream'
+                : 'border-rule text-ink-mute cursor-not-allowed'
+            }`}
+          >
+            {testStatus === 'testing' ? 'Testing...' : 'Test Key'}
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={!newKey.trim()}
+            className={`flex-1 py-3.5 font-semibold text-sm uppercase tracking-[0.14em] transition-all ${
+              newKey.trim()
+                ? 'bg-ink text-cream hover:bg-ink-mid active:scale-[0.99]'
+                : 'bg-rule text-ink-mute cursor-not-allowed'
+            }`}
+          >
+            Save Key
+          </button>
+        </div>
+
+        {/* Info */}
+        <div className="border-t border-rule pt-6 space-y-4">
+          <div>
+            <p className={`${SERIF} text-sm italic text-ink-mid mb-1.5`}>With a Claude API key</p>
+            <p className="text-xs text-ink-mute leading-relaxed">
+              Your onboarding answers are sent to Claude to generate a fully personalised, country-specific checklist — real visa requirements, local admin steps, and lifestyle tasks tailored to your destination city.
+            </p>
+          </div>
+          <div>
+            <p className={`${SERIF} text-sm italic text-ink-mid mb-1.5`}>Without a key</p>
+            <p className="text-xs text-ink-mute leading-relaxed">
+              The app uses a template checklist covering the most common tasks, with country-specific rules for the Netherlands pre-loaded.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GeneratingScreen({ destination }) {
+  return (
+    <div className="min-h-screen bg-cream flex flex-col items-center justify-center px-8 text-center">
+      <p className="text-[10px] text-ink-mute uppercase tracking-[0.2em] font-medium mb-6">
+        Generating your checklist
+      </p>
+      <h1 className={`${SERIF} text-4xl text-ink italic leading-tight mb-8`}>
+        {destination}
+      </h1>
+      <p className="text-sm text-ink-mute mb-10">
+        Claude is building your personalised checklist...
+      </p>
+      <div className="flex gap-2">
+        {[0, 1, 2].map(i => (
+          <div key={i} className="w-1.5 h-1.5 rounded-full bg-gold animate-bounce"
+            style={{ animationDelay: `${i * 0.15}s` }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function OnboardingForm({ onComplete, onOpenSettings }) {
   const [stepIdx, setStepIdx] = useState(0) // index into full STEPS array
   const [answers, setAnswers] = useState({
     originCountry: '', originCity: '',
@@ -536,12 +732,18 @@ function OnboardingForm({ onComplete }) {
           <span className="text-[10px] text-ink-mute uppercase tracking-[0.14em] font-medium">
             {visibleIdx + 1} / {total}
           </span>
-          {stepIdx > 0 && (
-            <button type="button" onClick={goBack}
+          <div className="flex items-center gap-4">
+            {stepIdx > 0 && (
+              <button type="button" onClick={goBack}
+                className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
+                Back
+              </button>
+            )}
+            <button type="button" onClick={onOpenSettings}
               className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
-              Back
+              Settings
             </button>
-          )}
+          </div>
         </div>
         <div className="h-px bg-rule">
           <div className="h-px bg-gold transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -761,7 +963,11 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('relocation-checked')) || {} }
     catch { return {} }
   })
-  const [activeFilter, setActiveFilter] = useState(null)
+  const [activeFilter, setActiveFilter]   = useState(null)
+  const [showSettings, setShowSettings]   = useState(false)
+  const [isGenerating, setIsGenerating]   = useState(false)
+  const [generatingDest, setGeneratingDest] = useState('')
+  const [aiError, setAiError]             = useState(null)
 
   useEffect(() => {
     if (plan) localStorage.setItem('relocation-plan', JSON.stringify(plan))
@@ -772,18 +978,43 @@ export default function App() {
     localStorage.setItem('relocation-checked', JSON.stringify(checked))
   }, [checked])
 
-  const handleGenerate = answers => {
-    const { checklist, mode } = generateChecklist(answers)
+  const handleGenerate = async answers => {
     const destination = `${answers.destCity}, ${answers.destCountry}`
-    setPlan({ destination, movingDate: answers.movingDate, checklist, mode, answers })
+    const apiKey = localStorage.getItem('claude-api-key')
+
+    if (apiKey) {
+      setGeneratingDest(destination)
+      setIsGenerating(true)
+      setAiError(null)
+      console.log('[Relocation Planner] Starting generation. Key in localStorage:', !!localStorage.getItem('claude-api-key'))
+      try {
+        const { checklist, mode } = await generateWithClaude(answers, apiKey)
+        setPlan({ destination, movingDate: answers.movingDate, checklist, mode, answers, aiGenerated: true })
+      } catch (err) {
+        console.error('[Relocation Planner] Claude API error (full):', err)
+        console.error('  err.message:', err.message)
+        console.error('  err.status:', err.status)
+        console.error('  err.error:', err.error)
+        setAiError(err.message)
+        const { checklist, mode } = generateChecklist(answers)
+        setPlan({ destination, movingDate: answers.movingDate, checklist, mode, answers, aiGenerated: false })
+      } finally {
+        setIsGenerating(false)
+      }
+    } else {
+      const { checklist, mode } = generateChecklist(answers)
+      setPlan({ destination, movingDate: answers.movingDate, checklist, mode, answers, aiGenerated: false })
+    }
     setChecked({})
     setActiveFilter(null)
   }
 
   const handleToggle = id => setChecked(prev => ({ ...prev, [id]: !prev[id] }))
-  const resetAll = () => { setPlan(null); setChecked({}); setActiveFilter(null) }
+  const resetAll = () => { setPlan(null); setChecked({}); setActiveFilter(null); setAiError(null) }
 
-  if (!plan) return <OnboardingForm onComplete={handleGenerate} />
+  if (showSettings) return <SettingsScreen onClose={() => setShowSettings(false)} />
+  if (isGenerating)  return <GeneratingScreen destination={generatingDest} />
+  if (!plan)         return <OnboardingForm onComplete={handleGenerate} onOpenSettings={() => setShowSettings(true)} />
 
   const allTasks      = plan.checklist.flatMap(m => m.tasks)
   const filteredTasks = activeFilter ? allTasks.filter(t => t.category === activeFilter) : allTasks
@@ -830,6 +1061,10 @@ export default function App() {
             </span>
             <div className="flex items-center gap-4">
               <span className="text-[9px] text-ink-mid uppercase tracking-[0.13em] font-semibold">{progress}%</span>
+              <button onClick={() => setShowSettings(true)}
+                className="text-[9px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.13em] font-medium transition-colors">
+                Settings
+              </button>
               <button onClick={resetAll}
                 className="text-[9px] text-ink-mid hover:text-ink border-b border-ink-mute hover:border-ink uppercase tracking-[0.13em] font-semibold transition-colors">
                 Start over
@@ -840,6 +1075,37 @@ export default function App() {
             <div className="h-px bg-gold transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
+
+        {/* AI generation status banners */}
+        {aiError && (
+          <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule flex items-center justify-between gap-4">
+            <p className="text-[10px] text-red-600 leading-relaxed">
+              Claude API error — showing template checklist.{' '}
+              <button onClick={() => setShowSettings(true)} className="underline">
+                Check your API key.
+              </button>
+            </p>
+          </div>
+        )}
+        {!plan.aiGenerated && !aiError && (
+          <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule flex items-center justify-between gap-4">
+            <p className="text-[10px] text-ink-mute leading-relaxed">
+              Template checklist.{' '}
+              <button onClick={() => setShowSettings(true)}
+                className="underline hover:text-ink-mid transition-colors">
+                Add your Claude API key
+              </button>
+              {' '}for a fully personalised version.
+            </p>
+          </div>
+        )}
+        {plan.aiGenerated && (
+          <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule">
+            <p className="text-[10px] text-gold font-medium uppercase tracking-[0.1em]">
+              Personalised by Claude
+            </p>
+          </div>
+        )}
 
         <UrgencyBanner movingDate={plan.movingDate} />
 

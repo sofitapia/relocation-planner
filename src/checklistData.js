@@ -77,12 +77,37 @@ const isDomestic        = a => !!(a.originCountry && a.destCountry && a.originCo
 
 // Tasks added conditionally based on onboarding answers
 const CONDITIONAL_TASKS = [
-  // Leaving Netherlands (international only — domestic moves don't deregister or cancel insurance)
-  { id: 101, category: 'Admin', monthsBefore: 2, label: 'Deregister at your municipality (uitschrijven)',
+  // Leaving Netherlands (international only)
+  // ── Highest priority: deregistration triggers most other admin ──
+  { id: 101, category: 'Admin', monthsBefore: 2,
+    label: 'Deregister from your gemeente (uitschrijven) — schedule your appointment now, can be done up to 5 days before departure',
     condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
-  { id: 102, category: 'Admin', monthsBefore: 1, label: 'Cancel your mandatory health insurance (zorgverzekering)',
+  { id: 102, category: 'Admin', monthsBefore: 1,
+    label: 'Cancel your Dutch health insurance (zorgverzekering) — must be done on or after your deregistration date',
     condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
-  { id: 103, category: 'Admin', monthsBefore: 1, label: 'Notify the Belastingdienst (Dutch Tax Authority) of your departure',
+  { id: 103, category: 'Admin', monthsBefore: 2,
+    label: 'Inform the Belastingdienst of your departure and check whether a final tax return (M-form) is required',
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
+  // ── Employment and pension ──
+  { id: 104, category: 'Admin', monthsBefore: 2,
+    label: 'Request a formal employment termination letter from your employer — required for future visa and permit applications',
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) && a.workStatus !== 'not-working' },
+  { id: 105, category: 'Admin', monthsBefore: 2,
+    label: 'Request a pension statement from your pension fund (pensioenfonds) — record your accrued Dutch pension rights',
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) && a.workStatus !== 'not-working' },
+  // ── Financial and digital ──
+  { id: 106, category: 'Admin', monthsBefore: 1,
+    label: 'Notify your Dutch bank of your new address or close your account — some banks require NL residency',
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
+  { id: 107, category: 'Admin', monthsBefore: 1,
+    label: 'Note that your DigiD expires or becomes unusable after deregistration — download any documents you need beforehand',
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
+  // ── Practical items ──
+  { id: 108, category: 'Admin', monthsBefore: 1,
+    label: 'Cancel your OV-chipkaart (public transport card) and request a refund on the remaining balance',
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
+  { id: 109, category: 'Admin', monthsBefore: 1,
+    label: 'Return any rented or BSN-linked items (library card, equipment leases) and settle outstanding subscriptions',
     condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
 
   // Arriving in Netherlands
