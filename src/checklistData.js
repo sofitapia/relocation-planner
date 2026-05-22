@@ -73,41 +73,44 @@ const holdsEUPassport   = a => Array.isArray(a.passports) && a.passports.some(p 
 const holdsDestPassport = a => Array.isArray(a.passports) && a.passports.includes(a.destCountry)
 const destIsEU          = a => EU_COUNTRIES.has(a.destCountry)
 const hasPassportData   = a => Array.isArray(a.passports) && a.passports.length > 0
+const isDomestic        = a => !!(a.originCountry && a.destCountry && a.originCountry === a.destCountry)
 
 // Tasks added conditionally based on onboarding answers
 const CONDITIONAL_TASKS = [
-  // Leaving Netherlands
+  // Leaving Netherlands (international only — domestic moves don't deregister or cancel insurance)
   { id: 101, category: 'Admin', monthsBefore: 2, label: 'Deregister at your municipality (uitschrijven)',
-    condition: a => a.originCountry === 'Netherlands' },
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
   { id: 102, category: 'Admin', monthsBefore: 1, label: 'Cancel your mandatory health insurance (zorgverzekering)',
-    condition: a => a.originCountry === 'Netherlands' },
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
   { id: 103, category: 'Admin', monthsBefore: 1, label: 'Notify the Belastingdienst (Dutch Tax Authority) of your departure',
-    condition: a => a.originCountry === 'Netherlands' },
+    condition: a => a.originCountry === 'Netherlands' && !isDomestic(a) },
 
   // Arriving in Netherlands
+  // BRP registration applies to domestic moves too (new municipality), so no isDomestic check
   { id: 111, category: 'Admin', monthsBefore: -1, label: 'Register at the local municipality (BRP registration)',
     condition: a => a.destCountry === 'Netherlands' },
+  // Health insurance only needed if coming from abroad
   { id: 112, category: 'Admin', monthsBefore: -1, label: 'Sign up for mandatory health insurance in the Netherlands',
-    condition: a => a.destCountry === 'Netherlands' },
+    condition: a => a.destCountry === 'Netherlands' && !isDomestic(a) },
 
-  // Work: job secured — skip if EU→EU (freedom of movement) or already holds dest passport
+  // Work: job secured — skip for domestic moves, EU→EU, or already holds dest passport
   { id: 121, category: 'Admin', monthsBefore: 3, label: 'Prepare employment contract and documents for your permit application',
-    condition: a => a.workStatus === 'secured' && !holdsDestPassport(a) && !(holdsEUPassport(a) && destIsEU(a)) },
+    condition: a => a.workStatus === 'secured' && !isDomestic(a) && !holdsDestPassport(a) && !(holdsEUPassport(a) && destIsEU(a)) },
   { id: 122, category: 'Admin', monthsBefore: 2, label: 'Apply for work visa or residence permit for {destination}',
-    condition: a => a.workStatus === 'secured' && !holdsDestPassport(a) && !(holdsEUPassport(a) && destIsEU(a)) },
+    condition: a => a.workStatus === 'secured' && !isDomestic(a) && !holdsDestPassport(a) && !(holdsEUPassport(a) && destIsEU(a)) },
 
-  // Passport: EU citizen moving to EU — freedom of movement applies
+  // Passport: EU citizen moving to another EU country — freedom of movement applies
   { id: 160, category: 'Admin', monthsBefore: 3,
     label: 'As an EU citizen, you have freedom of movement in {destination} — no visa or work permit required to live and work there.',
-    condition: a => hasPassportData(a) && holdsEUPassport(a) && destIsEU(a) && !holdsDestPassport(a) },
+    condition: a => !isDomestic(a) && hasPassportData(a) && holdsEUPassport(a) && destIsEU(a) && !holdsDestPassport(a) },
 
   // Passport: non-EU moving to EU, and does not hold destination country passport
   { id: 161, category: 'Admin', monthsBefore: 3,
     label: 'Research long-stay visa and residence permit options for {destination} based on your passport(s)',
-    condition: a => hasPassportData(a) && !holdsEUPassport(a) && !holdsDestPassport(a) && destIsEU(a) },
+    condition: a => !isDomestic(a) && hasPassportData(a) && !holdsEUPassport(a) && !holdsDestPassport(a) && destIsEU(a) },
   { id: 162, category: 'Admin', monthsBefore: 2,
     label: 'Apply for your visa or residence permit for {destination}',
-    condition: a => hasPassportData(a) && !holdsEUPassport(a) && !holdsDestPassport(a) && destIsEU(a) },
+    condition: a => !isDomestic(a) && hasPassportData(a) && !holdsEUPassport(a) && !holdsDestPassport(a) && destIsEU(a) },
 
   // Work: searching on arrival
   { id: 131, category: 'Admin', monthsBefore: 1, label: 'Update your CV for the {destination} job market',
