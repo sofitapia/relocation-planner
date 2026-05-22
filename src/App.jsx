@@ -98,41 +98,22 @@ function applyAutoSets(stepId, answers) {
 // ─── Onboarding steps ─────────────────────────────────────────────────────────
 
 const STEPS = [
-  // 1
+  // Hero search — origin, destination and date in one screen
   {
-    id: 'origin',
-    title: 'Where are you moving from?',
-    subtitle: "We'll generate your departure admin tasks based on this.",
-    type: 'location', countryKey: 'originCountry', cityKey: 'originCity',
-    validate: a => !!(a.originCountry && a.originCity),
-  },
-  // 2
-  {
-    id: 'destination',
-    title: 'Where are you moving to?',
-    subtitle: a => {
-      if (!a.destCountry || !a.destCity) return "Your arrival tasks and timeline are built around this."
-      if (a.destCountry === a.originCountry) return `This is a domestic move within ${a.destCountry} — we'll skip visa and immigration tasks.`
-      return "Your arrival tasks and timeline are built around this."
-    },
-    type: 'location', countryKey: 'destCountry', cityKey: 'destCity',
+    id: 'hero',
+    type: 'hero-search',
+    hideFromProgress: true,
     validate: a => {
-      if (!a.destCountry || !a.destCity) return false
+      if (!a.originCountry || !a.originCity) return false
+      if (!a.destCountry   || !a.destCity)   return false
+      if (!a.movingDate) return false
       if (a.destCity === a.originCity && a.destCountry === a.originCountry) {
         return 'Origin and destination cannot be the same city. Please choose a different destination.'
       }
       return true
     },
   },
-  // 3
-  {
-    id: 'movingDate',
-    title: 'When is your moving date?',
-    subtitle: 'Your entire checklist timeline is built around this.',
-    type: 'date',
-    validate: a => !!a.movingDate,
-  },
-  // 4
+  // 2
   {
     id: 'nationality',
     title: 'What is your nationality?',
@@ -333,6 +314,16 @@ function Chevron() {
     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
       <svg className="w-4 h-4 text-ink-mute" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+      </svg>
+    </div>
+  )
+}
+
+function ChevronSmall() {
+  return (
+    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+      <svg className="w-3.5 h-3.5 text-ink-mute" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
     </div>
   )
@@ -667,6 +658,244 @@ function GeneratingScreen({ destination }) {
   )
 }
 
+function HeroSearchStep({ answers, setAnswers, error, onNext, onOpenSettings }) {
+  const today = new Date().toISOString().split('T')[0]
+
+  const originCities = COUNTRIES.find(c => c.name === answers.originCountry)?.cities ?? []
+  const destCities   = COUNTRIES.find(c => c.name === answers.destCountry)?.cities ?? []
+
+  const destKey  = (answers.destCity || '').toLowerCase()
+  const bgImage  = Object.entries(CITY_IMAGES).find(([k]) => destKey.includes(k))?.[1] ?? null
+  const hasPhoto = !!bgImage
+
+  const swap = () => setAnswers(a => ({
+    ...a,
+    originCountry: a.destCountry, originCity: a.destCity,
+    destCountry: a.originCountry, destCity: a.originCity,
+  }))
+
+  const isDomestic = answers.originCountry && answers.destCountry &&
+    answers.originCountry === answers.destCountry &&
+    answers.destCity !== answers.originCity
+
+  const selectCls = "w-full bg-white border border-rule text-ink pl-3 pr-7 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors appearance-none cursor-pointer rounded-lg"
+  const labelCls  = "block text-[9px] font-bold uppercase tracking-[0.16em] text-ink-mute mb-1.5"
+
+  return (
+    <div className="min-h-screen relative flex flex-col items-center justify-center p-5 overflow-hidden">
+      {/* Background */}
+      {bgImage ? (
+        <>
+          <img src={bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/50 to-black/70" />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-cream" />
+      )}
+
+      {/* Settings link */}
+      <button type="button" onClick={onOpenSettings}
+        className={`absolute top-5 right-5 z-10 text-[9px] font-semibold uppercase tracking-[0.14em] transition-colors ${hasPhoto ? 'text-white/60 hover:text-white' : 'text-ink-mute hover:text-ink-mid'}`}>
+        Settings
+      </button>
+
+      {/* Content */}
+      <div className="relative z-10 w-full max-w-3xl lg:max-w-5xl mx-auto">
+
+        {/* Headline */}
+        <div className={`text-center mb-8 lg:mb-12 ${hasPhoto ? 'text-white' : 'text-ink'}`}>
+          <h1 className={`${SERIF} text-5xl md:text-6xl lg:text-7xl xl:text-8xl italic leading-tight mb-3`}>
+            Relocation Planner
+          </h1>
+          <p className={`text-sm lg:text-base ${hasPhoto ? 'text-white/60' : 'text-ink-mute'}`}>
+            Your personalised month-by-month moving checklist
+          </p>
+        </div>
+
+        {/* Search card */}
+        <div className={`rounded-2xl shadow-2xl p-5 lg:p-8 ${hasPhoto ? 'bg-white/95 backdrop-blur-md' : 'bg-white border border-rule'}`}>
+
+          {/* Input row */}
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+
+            {/* FROM */}
+            <div className="flex-1 min-w-0">
+              <label className={labelCls}>From</label>
+              <div className="space-y-2">
+                <div className="relative">
+                  <select value={answers.originCountry}
+                    onChange={e => setAnswers(a => ({ ...a, originCountry: e.target.value, originCity: '' }))}
+                    className={selectCls}>
+                    <option value="">Country</option>
+                    {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <ChevronSmall />
+                </div>
+                <div className="relative">
+                  <select value={answers.originCity}
+                    onChange={e => setAnswers(a => ({ ...a, originCity: e.target.value }))}
+                    disabled={!answers.originCountry}
+                    className={selectCls + (!answers.originCountry ? ' opacity-40 cursor-not-allowed' : '')}>
+                    <option value="">{answers.originCountry ? 'City' : '—'}</option>
+                    {originCities.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <ChevronSmall />
+                </div>
+              </div>
+            </div>
+
+            {/* Swap button — sits between FROM and TO */}
+            <div className="flex justify-center md:pb-1 md:flex-shrink-0">
+              <button type="button" onClick={swap}
+                className="w-9 h-9 rounded-full border border-rule bg-cream hover:border-gold hover:text-gold text-ink-mute flex items-center justify-center transition-all hover:rotate-180 duration-300"
+                title="Swap origin and destination">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+              </button>
+            </div>
+
+            {/* TO */}
+            <div className="flex-1 min-w-0">
+              <label className={labelCls}>To</label>
+              <div className="space-y-2">
+                <div className="relative">
+                  <select value={answers.destCountry}
+                    onChange={e => setAnswers(a => ({ ...a, destCountry: e.target.value, destCity: '' }))}
+                    className={selectCls}>
+                    <option value="">Country</option>
+                    {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <ChevronSmall />
+                </div>
+                <div className="relative">
+                  <select value={answers.destCity}
+                    onChange={e => setAnswers(a => ({ ...a, destCity: e.target.value }))}
+                    disabled={!answers.destCountry}
+                    className={selectCls + (!answers.destCountry ? ' opacity-40 cursor-not-allowed' : '')}>
+                    <option value="">{answers.destCountry ? 'City' : '—'}</option>
+                    {destCities.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <ChevronSmall />
+                </div>
+              </div>
+            </div>
+
+            {/* DATE */}
+            <div className="md:w-44 md:flex-shrink-0">
+              <label className={labelCls}>Moving Date</label>
+              <input type="date" value={answers.movingDate}
+                onChange={e => setAnswers(a => ({ ...a, movingDate: e.target.value }))}
+                min={today} style={{ colorScheme: 'light' }}
+                className="w-full bg-white border border-rule text-ink px-3 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors cursor-pointer rounded-lg" />
+            </div>
+
+          </div>
+
+          {/* Domestic note */}
+          {isDomestic && (
+            <p className="mt-3 text-xs text-ink-mid">
+              Domestic move within {answers.destCountry} — visa and immigration tasks will be skipped.
+            </p>
+          )}
+
+          {/* Validation error */}
+          {error && (
+            <p className="mt-3 text-xs text-red-600">{error}</p>
+          )}
+        </div>
+
+        {/* CTA */}
+        <div className="mt-5 flex justify-center">
+          <button type="button" onClick={onNext}
+            className="px-10 py-4 bg-gold text-white font-semibold text-sm uppercase tracking-[0.14em] rounded-full hover:bg-[#9B6E23] active:scale-[0.98] transition-all shadow-lg">
+            Start Planning
+          </button>
+        </div>
+
+        <p className={`text-center text-[9px] mt-4 uppercase tracking-[0.12em] ${hasPhoto ? 'text-white/40' : 'text-ink-mute'}`}>
+          Takes about 5 minutes · Personalised by Claude
+        </p>
+
+      </div>
+    </div>
+  )
+}
+
+function ContextPanel({ answers }) {
+  const destKey  = (answers.destCity || '').toLowerCase()
+  const bgImage  = Object.entries(CITY_IMAGES).find(([k]) => destKey.includes(k))?.[1] ?? null
+  const hasPhoto = !!bgImage
+
+  const lines = []
+  if (answers.originCity && answers.originCountry)
+    lines.push(`From ${answers.originCity}, ${answers.originCountry}`)
+  if (answers.destCity && answers.destCountry)
+    lines.push(`To ${answers.destCity}, ${answers.destCountry}`)
+  if (answers.movingDate)
+    lines.push(new Date(answers.movingDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
+  if (answers.nationality) lines.push(`Nationality: ${answers.nationality}`)
+  if (answers.workStatus === 'secured')     lines.push('Job secured')
+  if (answers.workStatus === 'searching')   lines.push('Looking for work on arrival')
+  if (answers.workStatus === 'not-working') lines.push('Not working')
+  if (answers.travelingWith === 'partner')        lines.push('Moving with partner')
+  if (answers.travelingWith === 'family')          lines.push('Moving with family')
+  if (answers.travelingWith === 'partner-family')  lines.push('Moving with partner & family')
+  if (answers.isHometown === 'yes') lines.push(`${answers.destCity} is your hometown`)
+  if (answers.firstTimeAbroad === 'yes') lines.push('First time moving abroad')
+
+  return (
+    <div className="hidden lg:flex lg:flex-col lg:w-[420px] xl:w-[500px] lg:flex-shrink-0 lg:min-h-screen relative overflow-hidden">
+      {hasPhoto ? (
+        <>
+          <img src={bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/55" />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-surface" />
+      )}
+
+      <div className={`relative z-10 p-12 xl:p-16 flex flex-col h-full ${hasPhoto ? 'text-white' : 'text-ink'}`}>
+        {answers.destCity ? (
+          <h2 className={`${SERIF} text-4xl xl:text-5xl italic leading-tight mb-2`}>
+            {answers.destCity}
+          </h2>
+        ) : (
+          <h2 className={`${SERIF} text-4xl xl:text-5xl italic leading-tight mb-2 ${hasPhoto ? 'text-white/30' : 'text-ink-mute'}`}>
+            Where to?
+          </h2>
+        )}
+        {answers.destCountry && (
+          <p className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${hasPhoto ? 'text-white/50' : 'text-ink-mute'}`}>
+            {answers.destCountry}
+          </p>
+        )}
+
+        {lines.length > 0 && (
+          <div className="mt-auto">
+            <p className={`text-[9px] font-bold uppercase tracking-[0.18em] mb-4 ${hasPhoto ? 'text-white/40' : 'text-ink-mute'}`}>
+              Your move so far
+            </p>
+            <ul className="space-y-2.5">
+              {lines.map((l, i) => (
+                <li key={i} className={`text-sm leading-snug ${hasPhoto ? 'text-white/80' : 'text-ink-mid'}`}>{l}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {lines.length === 0 && (
+          <div className="flex-1 flex items-end">
+            <p className={`${SERIF} text-2xl italic ${hasPhoto ? 'text-white/20' : 'text-ink-mute/30'}`}>
+              Your move, your story.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function OnboardingForm({ onComplete, onOpenSettings }) {
   const [stepIdx, setStepIdx] = useState(0) // index into full STEPS array
   const [answers, setAnswers] = useState({
@@ -692,11 +921,11 @@ function OnboardingForm({ onComplete, onOpenSettings }) {
   const current = STEPS[stepIdx]
   const today   = new Date().toISOString().split('T')[0]
 
-  // Progress based on visible (non-skipped) steps
-  const visibleSteps  = STEPS.filter(s => !s.shouldSkip?.(answers))
+  // Progress excludes the hero step and skipped steps
+  const visibleSteps  = STEPS.filter(s => !s.shouldSkip?.(answers) && !s.hideFromProgress)
   const visibleIdx    = visibleSteps.findIndex(s => s.id === current.id)
   const total         = visibleSteps.length
-  const progress      = ((visibleIdx + 1) / total) * 100
+  const progress      = visibleIdx >= 0 ? ((visibleIdx + 1) / total) * 100 : 0
   const isLast        = visibleIdx === total - 1
 
   const advance = () => {
@@ -724,103 +953,115 @@ function OnboardingForm({ onComplete, onOpenSettings }) {
 
   const warning = current.warning?.(answers) ?? null
 
+  // Hero step gets its own full-screen layout
+  if (current.type === 'hero-search') {
+    return (
+      <HeroSearchStep
+        answers={answers}
+        setAnswers={a => { setAnswers(a); setError(null) }}
+        error={error}
+        onNext={advance}
+        onOpenSettings={onOpenSettings}
+      />
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-cream flex flex-col">
-      {/* Progress bar */}
-      <div className="px-8 pt-8 pb-0 max-w-lg mx-auto w-full">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[10px] text-ink-mute uppercase tracking-[0.14em] font-medium">
-            {visibleIdx + 1} / {total}
-          </span>
-          <div className="flex items-center gap-4">
-            {stepIdx > 0 && (
-              <button type="button" onClick={goBack}
-                className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
-                Back
-              </button>
-            )}
-            <button type="button" onClick={onOpenSettings}
-              className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
-              Settings
-            </button>
-          </div>
-        </div>
-        <div className="h-px bg-rule">
-          <div className="h-px bg-gold transition-all duration-300" style={{ width: `${progress}%` }} />
-        </div>
-      </div>
+    <div className="min-h-screen bg-cream flex flex-col lg:flex-row">
 
-      {/* Question + input */}
-      <div className="flex-1 flex flex-col px-8 pt-10 pb-10 max-w-lg mx-auto w-full">
-        <div className="mb-8">
-          <h2 className={`${SERIF} text-[2rem] font-medium text-ink leading-tight mb-3 ${current.type === 'section-intro' ? 'italic text-[2.5rem]' : ''}`}>
-            {res(current.title, answers)}
-          </h2>
-          {res(current.subtitle, answers) && (
-            <p className="text-sm text-ink-mid leading-relaxed">{res(current.subtitle, answers)}</p>
-          )}
-        </div>
-
-        {/* Non-blocking inconsistency warning */}
-        {warning && (
-          <div className="mb-6 px-4 py-3 border border-gold/40 bg-gold/5">
-            <p className="text-xs text-ink-mid leading-relaxed">{warning}</p>
-          </div>
-        )}
-
-        {/* Blocking validation error */}
-        {error && (
-          <div className="mb-6 px-4 py-3 border border-red-300 bg-red-50">
-            <p className="text-xs text-red-700 leading-relaxed">{error}</p>
-          </div>
-        )}
-
-        <div className="flex-1">
-          {current.type === 'location' && (
-            <LocationInput countryKey={current.countryKey} cityKey={current.cityKey} answers={answers} setAnswers={a => { setAnswers(a); setError(null) }} />
-          )}
-
-          {current.type === 'date' && (
-            <input type="date" value={answers.movingDate} onChange={e => { setAnswers(a => ({ ...a, movingDate: e.target.value })); setError(null) }}
-              min={today} style={{ colorScheme: 'light' }}
-              className="w-full bg-white border border-rule text-ink px-4 py-3.5 text-sm focus:outline-none focus:border-gold transition-colors cursor-pointer" />
-          )}
-
-          {current.type === 'nationality' && (
-            <div className="relative">
-              <select value={answers.nationality} onChange={e => setAnswers(a => ({ ...a, nationality: e.target.value }))} className={SELECT_CLS}>
-                <option value="">Select a country</option>
-                {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-              </select>
-              <Chevron />
-            </div>
-          )}
-
-          {current.type === 'passports' && (
-            <div>
-              <PassportMultiSelect selected={answers.passports} onChange={val => setAnswers(a => ({ ...a, passports: val }))} />
-              {current.optional && (
-                <button type="button" onClick={() => setStepIdx(getNextStep(stepIdx, answers))}
-                  className="mt-4 text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
-                  Skip this question
+      {/* ── Left column: progress + question + input ── */}
+      <div className="flex-1 flex flex-col lg:max-w-2xl xl:max-w-2xl">
+        {/* Progress bar */}
+        <div className="px-8 pt-8 pb-0">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] text-ink-mute uppercase tracking-[0.14em] font-medium">
+              {visibleIdx + 1} / {total}
+            </span>
+            <div className="flex items-center gap-4">
+              {stepIdx > 0 && (
+                <button type="button" onClick={goBack}
+                  className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
+                  Back
                 </button>
               )}
+              <button type="button" onClick={onOpenSettings}
+                className="text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
+                Settings
+              </button>
+            </div>
+          </div>
+          <div className="h-px bg-rule">
+            <div className="h-px bg-gold transition-all duration-300" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+
+        {/* Question + input */}
+        <div className="flex-1 flex flex-col px-8 pt-10 pb-10 lg:pt-16 lg:pb-16">
+          <div className="mb-8 lg:mb-10">
+            <h2 className={`${SERIF} text-[2rem] lg:text-[2.75rem] xl:text-[3rem] font-medium text-ink leading-tight mb-3 ${current.type === 'section-intro' ? 'italic' : ''}`}>
+              {res(current.title, answers)}
+            </h2>
+            {res(current.subtitle, answers) && (
+              <p className="text-sm lg:text-base text-ink-mid leading-relaxed">{res(current.subtitle, answers)}</p>
+            )}
+          </div>
+
+          {warning && (
+            <div className="mb-6 px-4 py-3 border border-gold/40 bg-gold/5">
+              <p className="text-xs text-ink-mid leading-relaxed">{warning}</p>
+            </div>
+          )}
+          {error && (
+            <div className="mb-6 px-4 py-3 border border-red-300 bg-red-50">
+              <p className="text-xs text-red-700 leading-relaxed">{error}</p>
             </div>
           )}
 
-          {current.type === 'radio' && (
-            <RadioInput step={current} answers={answers} setAnswers={setAnswers} />
-          )}
+          <div className="flex-1">
+            {current.type === 'location' && (
+              <LocationInput countryKey={current.countryKey} cityKey={current.cityKey} answers={answers} setAnswers={a => { setAnswers(a); setError(null) }} />
+            )}
+            {current.type === 'date' && (
+              <input type="date" value={answers.movingDate} onChange={e => { setAnswers(a => ({ ...a, movingDate: e.target.value })); setError(null) }}
+                min={today} style={{ colorScheme: 'light' }}
+                className="w-full bg-white border border-rule text-ink px-4 py-3.5 text-sm focus:outline-none focus:border-gold transition-colors cursor-pointer" />
+            )}
+            {current.type === 'nationality' && (
+              <div className="relative">
+                <select value={answers.nationality} onChange={e => setAnswers(a => ({ ...a, nationality: e.target.value }))} className={SELECT_CLS}>
+                  <option value="">Select a country</option>
+                  {COUNTRIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+                <Chevron />
+              </div>
+            )}
+            {current.type === 'passports' && (
+              <div>
+                <PassportMultiSelect selected={answers.passports} onChange={val => setAnswers(a => ({ ...a, passports: val }))} />
+                {current.optional && (
+                  <button type="button" onClick={() => setStepIdx(getNextStep(stepIdx, answers))}
+                    className="mt-4 text-[10px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.14em] font-medium transition-colors">
+                    Skip this question
+                  </button>
+                )}
+              </div>
+            )}
+            {current.type === 'radio' && (
+              <RadioInput step={current} answers={answers} setAnswers={setAnswers} />
+            )}
+            {current.type === 'multiselect' && (
+              <MultiSelectInput step={current} answers={answers} setAnswers={setAnswers} />
+            )}
+          </div>
 
-          {current.type === 'multiselect' && (
-            <MultiSelectInput step={current} answers={answers} setAnswers={setAnswers} />
-          )}
-        </div>
-
-        <div className="pt-10">
-          <NextButton onClick={advance} disabled={false} label={isLast ? 'Generate My Checklist' : 'Next'} />
+          <div className="pt-10">
+            <NextButton onClick={advance} disabled={false} label={isLast ? 'Generate My Checklist' : 'Next'} />
+          </div>
         </div>
       </div>
+
+      {/* ── Right column: context panel (desktop only) ── */}
+      <ContextPanel answers={answers} />
     </div>
   )
 }
@@ -1052,92 +1293,152 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Sticky nav ────────────────────────────────────────────────── */}
-      <div className="border-b border-rule sticky top-0 z-10" style={{ backgroundColor: '#F5F0E8' }}>
-        <div className="max-w-2xl mx-auto px-6 pt-4 pb-3">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] text-ink-mute uppercase tracking-[0.13em] font-medium">
-              {totalDone} of {filteredTasks.length} tasks
-            </span>
-            <div className="flex items-center gap-4">
-              <span className="text-[9px] text-ink-mid uppercase tracking-[0.13em] font-semibold">{progress}%</span>
-              <button onClick={() => setShowSettings(true)}
-                className="text-[9px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.13em] font-medium transition-colors">
-                Settings
-              </button>
-              <button onClick={resetAll}
-                className="text-[9px] text-ink-mid hover:text-ink border-b border-ink-mute hover:border-ink uppercase tracking-[0.13em] font-semibold transition-colors">
-                Start over
-              </button>
+      {/* ── Desktop sidebar + Mobile sticky nav + Checklist ─────────── */}
+      <div className="lg:flex">
+
+        {/* Desktop sidebar — hidden on mobile */}
+        <aside className="hidden lg:flex lg:flex-col lg:w-72 xl:w-80 lg:flex-shrink-0 lg:sticky lg:top-0 lg:h-screen lg:border-r lg:border-rule lg:overflow-y-auto" style={{ backgroundColor: '#F5F0E8' }}>
+          {/* Destination */}
+          <div className="px-7 py-7 border-b border-rule">
+            <h2 className={`${SERIF} text-2xl text-ink italic leading-tight mb-1`}>{plan.destination}</h2>
+            <p className="text-[9px] text-ink-mute uppercase tracking-[0.13em]">{dateStr}</p>
+            {summary && <p className="text-[9px] text-ink-mute mt-0.5 uppercase tracking-[0.1em]">{summary}</p>}
+          </div>
+
+          {/* Progress */}
+          <div className="px-7 py-5 border-b border-rule">
+            <div className="flex justify-between mb-2">
+              <span className="text-[9px] text-ink-mute uppercase tracking-[0.13em]">{totalDone} / {filteredTasks.length} tasks</span>
+              <span className="text-[9px] text-ink-mid font-semibold uppercase tracking-[0.13em]">{progress}%</span>
+            </div>
+            <div className="h-px bg-rule">
+              <div className="h-px bg-gold transition-all duration-500" style={{ width: `${progress}%` }} />
             </div>
           </div>
-          <div className="h-px bg-rule">
-            <div className="h-px bg-gold transition-all duration-500" style={{ width: `${progress}%` }} />
+
+          {/* AI status */}
+          {aiError && (
+            <div className="px-7 py-3 border-b border-rule">
+              <p className="text-[10px] text-red-600 leading-relaxed">
+                Claude API error.{' '}
+                <button onClick={() => setShowSettings(true)} className="underline">Check key.</button>
+              </p>
+            </div>
+          )}
+          {!plan.aiGenerated && !aiError && (
+            <div className="px-7 py-3 border-b border-rule">
+              <p className="text-[10px] text-ink-mute leading-relaxed">
+                Template checklist.{' '}
+                <button onClick={() => setShowSettings(true)} className="underline hover:text-ink-mid">Add API key</button>
+                {' '}for Claude personalisation.
+              </p>
+            </div>
+          )}
+          {plan.aiGenerated && (
+            <div className="px-7 py-3 border-b border-rule">
+              <p className="text-[9px] text-gold font-semibold uppercase tracking-[0.1em]">Personalised by Claude</p>
+            </div>
+          )}
+
+          <UrgencyBanner movingDate={plan.movingDate} />
+
+          {/* Vertical filter nav */}
+          <div className="px-7 py-6 flex-1">
+            <p className="text-[9px] text-ink-mute uppercase tracking-[0.16em] font-semibold mb-3">Filter by</p>
+            {['All', ...Object.keys(CATEGORIES)].map(cat => {
+              const isActive = cat === 'All' ? activeFilter === null : activeFilter === cat
+              return (
+                <button key={cat}
+                  onClick={() => setActiveFilter(cat === 'All' ? null : prev => prev === cat ? null : cat)}
+                  className={`block w-full text-left py-2 text-[10px] font-semibold uppercase tracking-[0.14em] border-l-2 pl-3 mb-0.5 transition-colors ${
+                    isActive ? 'border-gold text-gold' : 'border-transparent text-ink-mute hover:text-ink-mid hover:border-rule'
+                  }`}>
+                  {cat}
+                </button>
+              )
+            })}
           </div>
+
+          {/* Sidebar actions */}
+          <div className="px-7 py-5 border-t border-rule space-y-2">
+            <button onClick={() => setShowSettings(true)}
+              className="block text-[9px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.13em] font-medium transition-colors">
+              Settings
+            </button>
+            <button onClick={resetAll}
+              className="block text-[9px] text-ink-mid hover:text-ink uppercase tracking-[0.13em] font-semibold transition-colors">
+              Start over
+            </button>
+          </div>
+        </aside>
+
+        {/* Main content column */}
+        <div className="lg:flex-1 min-w-0">
+
+          {/* Mobile sticky nav — hidden on desktop */}
+          <div className="lg:hidden border-b border-rule sticky top-0 z-10" style={{ backgroundColor: '#F5F0E8' }}>
+            <div className="max-w-2xl mx-auto px-6 pt-4 pb-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] text-ink-mute uppercase tracking-[0.13em] font-medium">
+                  {totalDone} of {filteredTasks.length} tasks
+                </span>
+                <div className="flex items-center gap-4">
+                  <span className="text-[9px] text-ink-mid uppercase tracking-[0.13em] font-semibold">{progress}%</span>
+                  <button onClick={() => setShowSettings(true)} className="text-[9px] text-ink-mute hover:text-ink-mid uppercase tracking-[0.13em] font-medium transition-colors">Settings</button>
+                  <button onClick={resetAll} className="text-[9px] text-ink-mid hover:text-ink border-b border-ink-mute hover:border-ink uppercase tracking-[0.13em] font-semibold transition-colors">Start over</button>
+                </div>
+              </div>
+              <div className="h-px bg-rule">
+                <div className="h-px bg-gold transition-all duration-500" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+            {aiError && (
+              <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule">
+                <p className="text-[10px] text-red-600">Claude API error. <button onClick={() => setShowSettings(true)} className="underline">Check key.</button></p>
+              </div>
+            )}
+            {!plan.aiGenerated && !aiError && (
+              <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule">
+                <p className="text-[10px] text-ink-mute">Template checklist. <button onClick={() => setShowSettings(true)} className="underline hover:text-ink-mid">Add Claude API key</button> for a personalised version.</p>
+              </div>
+            )}
+            {plan.aiGenerated && (
+              <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule">
+                <p className="text-[10px] text-gold font-medium uppercase tracking-[0.1em]">Personalised by Claude</p>
+              </div>
+            )}
+            <UrgencyBanner movingDate={plan.movingDate} />
+            <div className="max-w-2xl mx-auto px-6 pt-3 pb-3 flex gap-6">
+              {['All', ...Object.keys(CATEGORIES)].map(cat => {
+                const isActive = cat === 'All' ? activeFilter === null : activeFilter === cat
+                return (
+                  <button key={cat}
+                    onClick={() => setActiveFilter(cat === 'All' ? null : prev => prev === cat ? null : cat)}
+                    className={`text-[9px] font-semibold uppercase tracking-[0.14em] py-1 border-b-2 transition-colors ${
+                      isActive ? 'text-gold border-gold' : 'text-ink-mute border-transparent hover:text-ink-mid'
+                    }`}>
+                    {cat}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ── Checklist ──────────────────────────────────────────────── */}
+          <div className="px-6 lg:px-10 xl:px-14 pt-4 pb-24 max-w-2xl mx-auto lg:max-w-none">
+            {plan.checklist.map(monthData => (
+              <MonthCard key={monthData.key} monthData={monthData} movingDate={plan.movingDate}
+                checked={checked} onToggle={handleToggle} activeFilter={activeFilter} />
+            ))}
+            {progress === 100 && (
+              <div className="pt-16 pb-8 border-t border-rule mt-4">
+                <p className={`${SERIF} text-2xl lg:text-3xl text-ink italic`}>All done.</p>
+                <p className="text-ink-mid text-sm mt-2">Enjoy {plan.destination}.</p>
+              </div>
+            )}
+          </div>
+
         </div>
-
-        {/* AI generation status banners */}
-        {aiError && (
-          <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule flex items-center justify-between gap-4">
-            <p className="text-[10px] text-red-600 leading-relaxed">
-              Claude API error — showing template checklist.{' '}
-              <button onClick={() => setShowSettings(true)} className="underline">
-                Check your API key.
-              </button>
-            </p>
-          </div>
-        )}
-        {!plan.aiGenerated && !aiError && (
-          <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule flex items-center justify-between gap-4">
-            <p className="text-[10px] text-ink-mute leading-relaxed">
-              Template checklist.{' '}
-              <button onClick={() => setShowSettings(true)}
-                className="underline hover:text-ink-mid transition-colors">
-                Add your Claude API key
-              </button>
-              {' '}for a fully personalised version.
-            </p>
-          </div>
-        )}
-        {plan.aiGenerated && (
-          <div className="max-w-2xl mx-auto px-6 py-2 border-b border-rule">
-            <p className="text-[10px] text-gold font-medium uppercase tracking-[0.1em]">
-              Personalised by Claude
-            </p>
-          </div>
-        )}
-
-        <UrgencyBanner movingDate={plan.movingDate} />
-
-        <div className="max-w-2xl mx-auto px-6 pt-3 pb-3 flex gap-6">
-          {['All', ...Object.keys(CATEGORIES)].map(cat => {
-            const isActive = cat === 'All' ? activeFilter === null : activeFilter === cat
-            return (
-              <button key={cat}
-                onClick={() => setActiveFilter(cat === 'All' ? null : prev => prev === cat ? null : cat)}
-                className={`text-[9px] font-semibold uppercase tracking-[0.14em] py-1 border-b-2 transition-colors ${
-                  isActive ? 'text-gold border-gold' : 'text-ink-mute border-transparent hover:text-ink-mid'
-                }`}>
-                {cat}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── Checklist ─────────────────────────────────────────────────── */}
-      <div className="max-w-2xl mx-auto px-6 pt-4 pb-24">
-        {plan.checklist.map(monthData => (
-          <MonthCard key={monthData.key} monthData={monthData} movingDate={plan.movingDate}
-            checked={checked} onToggle={handleToggle} activeFilter={activeFilter} />
-        ))}
-
-        {progress === 100 && (
-          <div className="pt-16 pb-8 border-t border-rule mt-4">
-            <p className={`${SERIF} text-2xl text-ink italic`}>All done.</p>
-            <p className="text-ink-mid text-sm mt-2">Enjoy {plan.destination}.</p>
-          </div>
-        )}
       </div>
     </div>
   )
