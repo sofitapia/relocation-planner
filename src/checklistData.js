@@ -130,6 +130,73 @@ const CONDITIONAL_TASKS = [
     condition: a => a.firstTimeAbroad === 'yes' },
 ]
 
+// Lifestyle tasks — appear in "Rebuild Your Life" bucket after the move
+const LIFESTYLE_TASKS = [
+  // Fitness
+  { id: 201, category: 'Explore', label: 'Find a gym near your new home in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('gym') },
+  { id: 202, category: 'Explore', label: 'Find running routes or a running club in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('running') },
+  { id: 203, category: 'Explore', label: 'Find cycling routes and a local bike shop in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('cycling') },
+  { id: 204, category: 'Explore', label: 'Find a public pool or swim club in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('swimming') },
+  { id: 205, category: 'Explore', label: 'Search for amateur sports leagues and teams in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('team-sports') },
+  { id: 206, category: 'Explore', label: 'Find a climbing gym in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('climbing') },
+  { id: 207, category: 'Explore', label: 'Find a yoga or Pilates studio in {city}',
+    condition: a => (a.fitnessHabits||[]).includes('yoga') },
+
+  // Social
+  { id: 211, category: 'Social', label: 'Find expat communities, Meetup groups, or interest clubs in {city}',
+    condition: a => a.socialStyle === 'building' || a.socialStyle === 'big-circle' },
+  { id: 212, category: 'Social', label: 'Find language exchanges or international community events in {city}',
+    condition: a => a.socialStyle === 'building' },
+
+  // Food
+  { id: 221, category: 'Explore', label: 'Explore the best local restaurants in your neighbourhood in {city}',
+    condition: a => (a.foodHabits||[]).includes('restaurants') },
+  { id: 222, category: 'Explore', label: 'Find your nearest supermarket and specialty food shops in {city}',
+    condition: a => (a.foodHabits||[]).includes('home-cooking') },
+  { id: 223, category: 'Explore', label: 'Locate the nearest farmers market in {city}',
+    condition: a => (a.foodHabits||[]).includes('farmers-markets') },
+  { id: 224, category: 'Explore', label: 'Find your go-to café and remote workspace in {city}',
+    condition: a => (a.foodHabits||[]).includes('coffee-shops') },
+  { id: 225, category: 'Explore', label: 'Find restaurants serving cuisines you love in {city}',
+    condition: a => (a.foodHabits||[]).includes('new-cuisines') },
+
+  // Hobbies
+  { id: 231, category: 'Explore', label: 'Find live music venues and upcoming gigs in {city}',
+    condition: a => (a.hobbies||[]).includes('music') },
+  { id: 232, category: 'Explore', label: 'Visit the top art museums and galleries in {city}',
+    condition: a => (a.hobbies||[]).includes('art-museums') },
+  { id: 233, category: 'Social',  label: 'Search for volunteer opportunities in {city}',
+    condition: a => (a.hobbies||[]).includes('volunteering') },
+  { id: 234, category: 'Explore', label: 'Explore the nightlife and find bars or clubs that suit your style in {city}',
+    condition: a => (a.hobbies||[]).includes('nightlife') },
+  { id: 235, category: 'Explore', label: 'Research hiking trails and nature spots near {city}',
+    condition: a => (a.hobbies||[]).includes('nature-hiking') },
+  { id: 236, category: 'Explore', label: 'Find your nearest library and a favourite bookshop in {city}',
+    condition: a => (a.hobbies||[]).includes('reading') },
+  { id: 237, category: 'Explore', label: 'Find gaming cafés or board game nights in {city}',
+    condition: a => (a.hobbies||[]).includes('gaming') },
+  { id: 238, category: 'Explore', label: 'Book tickets for theatre, opera, or live performance in {city}',
+    condition: a => (a.hobbies||[]).includes('theatre') },
+
+  // Priorities
+  { id: 241, category: 'Admin',   label: 'Research professional networking events and coworking spaces in {city}',
+    condition: a => (a.priorities||[]).includes('building-career') },
+  { id: 242, category: 'Social',  label: 'Join a local community group, Meetup, or interest club in {city}',
+    condition: a => (a.priorities||[]).includes('finding-community') },
+  { id: 243, category: 'Explore', label: 'Create a "must visit" list of neighbourhoods and landmarks in {city}',
+    condition: a => (a.priorities||[]).includes('exploring-city') },
+  { id: 244, category: 'Admin',   label: 'Map out your daily routine spots — gym, café, grocery, work — in {city}',
+    condition: a => (a.priorities||[]).includes('establishing-routine') },
+  { id: 245, category: 'Explore', label: 'Research family-friendly neighbourhoods, parks, and activities in {city}',
+    condition: a => (a.priorities||[]).includes('family-life') },
+]
+
 // Base task IDs to remove based on answers
 const TASK_SKIPS = [
   { taskId: 6,  when: a => a.isHometown === 'yes' },  // Join local online communities
@@ -161,7 +228,15 @@ export function generateChecklist(answers = {}) {
   const extraTasks = CONDITIONAL_TASKS.filter(t => t.condition(answers))
   const allTasks = [...baseTasks, ...extraTasks]
 
-  const fill = t => ({ ...t, label: t.label.replace(/{destination}/g, destination) })
+  const city = answers.destCity || destination
+  const fill = t => ({
+    ...t,
+    label: t.label
+      .replace(/{destination}/g, destination)
+      .replace(/{city}/g, city),
+  })
+
+  const lifestyleTasks = LIFESTYLE_TASKS.filter(t => t.condition(answers)).map(fill)
 
   // Compressed mode: < 30 days — collapse pre-move tasks into one urgent bucket
   if (daysUntilMove < 30) {
@@ -196,6 +271,10 @@ export function generateChecklist(answers = {}) {
       buckets.push({ key: 'after-move', label: 'After the Move', tasks: afterTasks })
     }
 
+    if (lifestyleTasks.length) {
+      buckets.push({ key: 'rebuild-life', label: 'Rebuild Your Life', tasks: lifestyleTasks })
+    }
+
     return { checklist: buckets, mode: 'compressed' }
   }
 
@@ -220,6 +299,10 @@ export function generateChecklist(answers = {}) {
   const checklist = Object.entries(tasksByMonth)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => ({ key, ...value }))
+
+  if (lifestyleTasks.length) {
+    checklist.push({ key: 'rebuild-life', label: 'Rebuild Your Life', tasks: lifestyleTasks })
+  }
 
   return { checklist, mode: 'normal' }
 }

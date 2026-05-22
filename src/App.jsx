@@ -161,6 +161,91 @@ const STEPS = [
     ],
     validate: a => !!a.travelingWith,
   },
+
+  // ── Your life there ──────────────────────────────────────────────────────────
+  {
+    id: 'lifeSection',
+    title: 'Your life there.',
+    subtitle: "The logistics are covered. Now let's make sure you can rebuild the life you love in your new city.",
+    type: 'section-intro',
+    validate: () => true,
+  },
+  {
+    id: 'fitnessHabits',
+    title: 'What does your fitness routine look like?',
+    subtitle: "Select everything that applies — we'll find the spots in your new city.",
+    type: 'multiselect',
+    validate: () => true,
+    options: [
+      { label: 'Gym',             value: 'gym' },
+      { label: 'Running',         value: 'running' },
+      { label: 'Cycling',         value: 'cycling' },
+      { label: 'Swimming',        value: 'swimming' },
+      { label: 'Team sports',     value: 'team-sports' },
+      { label: 'Climbing',        value: 'climbing' },
+      { label: 'Yoga / Pilates',  value: 'yoga' },
+      { label: 'None',            value: 'none' },
+    ],
+  },
+  {
+    id: 'socialStyle',
+    title: 'How would you describe your social life?',
+    subtitle: null,
+    type: 'radio',
+    options: [
+      { label: 'Mostly close friends — quality over quantity', value: 'close-friends' },
+      { label: 'Big social circle — I thrive with lots of people', value: 'big-circle' },
+      { label: 'Mix of both',                                  value: 'mixed' },
+      { label: 'Mostly family',                                value: 'family-focused' },
+      { label: "Still building my social life",                value: 'building' },
+    ],
+    validate: a => !!a.socialStyle,
+  },
+  {
+    id: 'foodHabits',
+    title: 'What are your food habits?',
+    subtitle: "We'll help you find your favourites in the new city.",
+    type: 'multiselect',
+    validate: () => true,
+    options: [
+      { label: 'Love eating out at restaurants', value: 'restaurants' },
+      { label: 'Prefer cooking at home',          value: 'home-cooking' },
+      { label: 'Farmers markets / fresh produce', value: 'farmers-markets' },
+      { label: 'Coffee shops as my workspace',    value: 'coffee-shops' },
+      { label: 'Always trying new cuisines',      value: 'new-cuisines' },
+    ],
+  },
+  {
+    id: 'hobbies',
+    title: 'What are your hobbies and interests?',
+    subtitle: null,
+    type: 'multiselect',
+    validate: () => true,
+    options: [
+      { label: 'Music — gigs, concerts, live venues', value: 'music' },
+      { label: 'Art and museums',                      value: 'art-museums' },
+      { label: 'Volunteering',                          value: 'volunteering' },
+      { label: 'Nightlife',                             value: 'nightlife' },
+      { label: 'Nature and hiking',                    value: 'nature-hiking' },
+      { label: 'Reading and bookshops',                value: 'reading' },
+      { label: 'Gaming',                               value: 'gaming' },
+      { label: 'Theatre and performing arts',          value: 'theatre' },
+    ],
+  },
+  {
+    id: 'priorities',
+    title: 'What matters most to you in the new place?',
+    subtitle: "Select everything that applies.",
+    type: 'multiselect',
+    validate: () => true,
+    options: [
+      { label: 'Building my career',      value: 'building-career' },
+      { label: 'Finding community',        value: 'finding-community' },
+      { label: 'Exploring the city',       value: 'exploring-city' },
+      { label: 'Establishing my routine', value: 'establishing-routine' },
+      { label: 'Family life',             value: 'family-life' },
+    ],
+  },
 ]
 
 // ─── Onboarding sub-components ────────────────────────────────────────────────
@@ -221,6 +306,37 @@ function RadioInput({ step, answers, onSelect }) {
           </button>
         </li>
       ))}
+    </ul>
+  )
+}
+
+function MultiSelectInput({ step, answers, setAnswers }) {
+  const selected = answers[step.id] || []
+  const toggle = value => {
+    const next = selected.includes(value)
+      ? selected.filter(v => v !== value)
+      : [...selected, value]
+    setAnswers(a => ({ ...a, [step.id]: next }))
+  }
+  return (
+    <ul className="space-y-3">
+      {step.options.map(opt => {
+        const isSelected = selected.includes(opt.value)
+        return (
+          <li key={opt.value}>
+            <button
+              onClick={() => toggle(opt.value)}
+              className={`w-full text-left px-5 py-4 border text-sm font-medium transition-all ${
+                isSelected
+                  ? 'border-[#c8ff00] text-[#c8ff00] bg-[#c8ff00]/5'
+                  : 'border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
+              }`}
+            >
+              {opt.label}
+            </button>
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -294,6 +410,11 @@ function OnboardingForm({ onComplete }) {
     firstTimeAbroad: '',
     workStatus: '',
     travelingWith: '',
+    fitnessHabits: [],
+    socialStyle: '',
+    foodHabits: [],
+    hobbies: [],
+    priorities: [],
   })
 
   const total   = STEPS.length
@@ -410,6 +531,12 @@ function OnboardingForm({ onComplete }) {
           {current.type === 'radio' && (
             <RadioInput step={current} answers={answers} onSelect={handleRadioSelect} />
           )}
+
+          {current.type === 'multiselect' && (
+            <MultiSelectInput step={current} answers={answers} setAnswers={setAnswers} />
+          )}
+
+          {/* section-intro renders nothing here — title/subtitle above + Next button below is enough */}
         </div>
 
         {/* Next/Generate button — not shown for radio (auto-advances) */}
