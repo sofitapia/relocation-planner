@@ -75,7 +75,10 @@ export function buildPrompt(answers) {
   const nlArrival = destCountry === 'Netherlands'
     ? '\n- DUTCH ARRIVAL (mandatory): BRP registration at gemeente, sign up for mandatory zorgverzekering'
     : ''
-  const countryHints = nlDeparture + nlArrival
+  const mxArrival = destCountry === 'Mexico'
+    ? '\n- MEXICO ARRIVAL (mandatory): research correct visa/residency permit (Residente Temporal for 180+ days, Residente Permanente for long-term), get CURP (population registry code), get RFC (tax ID), open bank account (BBVA/Santander/HSBC are common for foreigners), register with IMSS if employed or get private health insurance otherwise, get local SIM card (Telcel or AT&T), register with home country embassy/consulate, find a notario público'
+    : ''
+  const countryHints = nlDeparture + nlArrival + mxArrival
 
   return `Generate a personalised moving checklist for this person.
 
