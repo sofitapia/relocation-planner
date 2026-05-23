@@ -845,7 +845,7 @@ function ContextPanel({ answers }) {
   if (answers.firstTimeAbroad === 'yes') lines.push('First time moving abroad')
 
   return (
-    <div className="hidden lg:flex lg:flex-col lg:w-[420px] xl:w-[500px] lg:flex-shrink-0 lg:min-h-screen relative overflow-hidden">
+    <div className="hidden lg:flex lg:flex-col lg:flex-1 lg:min-h-screen relative overflow-hidden">
       {hasPhoto ? (
         <>
           <img src={bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
